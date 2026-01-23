@@ -62,3 +62,40 @@ def predict_mask_from_box(
     score = float(scores[best_idx])
     return mask, score
       
+import numpy as np
+import torch
+from segment_anything import SamPredictor
+
+@torch.inference_mode()
+def predict_masks_from_box_and_points(
+    predictor: SamPredictor,
+    image_rgb: np.ndarray,
+    box_xyxy: np.ndarray,
+    point_coords: np.ndarray | None,
+    point_labels: np.ndarray | None,
+    multimask: bool = True,
+):
+    """
+    Retourne (masks, scores) où :
+      - masks : (K, H, W) bool
+      - scores : (K,) float
+    """
+    predictor.set_image(image_rgb)
+
+    box = box_xyxy.astype(np.float32)[None, :]
+
+    if point_coords is not None:
+        pc = point_coords.astype(np.float32)
+        pl = point_labels.astype(np.int64)
+    else:
+        pc, pl = None, None
+
+    masks, scores, _ = predictor.predict(
+        point_coords=pc,
+        point_labels=pl,
+        box=box,
+        multimask_output=multimask,
+    )
+
+    return masks.astype(bool), scores.astype(float)
+    

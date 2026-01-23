@@ -81,3 +81,51 @@ Par exemple, sur mes tests, ça permet de 'débugger' tout de suite : si je vois
 
 
 ## Exercice 5 : Mini-UI Streamlit : sélection d’image, saisie de bbox, segmentation, affichage et sauvegarde
+
+Nous allons maintenant assembler les briques précédentes dans une mini-UI Streamlit. Pour cela, nous modifions le fichier `TP1/src/app.py`
+
+**Résultats**
+
+|Image         |Cas de test|Score |Aire (px)|Temps (ms)|
+|--------------|-----------|------|---------|----------|
+|Mug           |Simple (Objet isolé)|0.996 |193 940  |1631.3    |
+|Souris        |Précis (BBox serrée)|0.986 |2 630    |1643.2    |
+|Souris        |Ambigu (BBox large)|0.952 |10 060   |1634.8    |
+
+
+### Cas complexe Souris dans environnement chargé
+
+![souris_bien](./images/f4c0f670b59b84e9221baa2eb1d39b8371e5bc2c3be54073844dfd29.jpg)
+
+![souris_mal](./images/f62216ed34ec8a2c5dfab4ffb93d22952c85508fec54811acfe2150d.jpg)
+
+>il faut que la souris soit encadrée précisément pour que l bon objet soit detecter.
+
+### Cas simple Mug
+
+![mug_bien](./images/5d561f024cf823d4840e8214361d7724b9c98a54e3ed7f98d08c981a.jpg)
+
+>Une segmentation quasi parfaite avec un score maximal.
+
+### Impact BBox
+
+L'ajustement de la BBox est déterminant pour la précision de SAM. Une boîte trop large crée de l'ambiguïté : dans mon test sur la souris, le modèle a inclus le tapis de souris, multipliant l'aire par quatre et faisant baisser le score de confiance. À l'inverse, une boîte serrée force SAM à isoler l'objet exact, produisant un masque net et un score optimal (0.98+). L'overlay est donc essentiel pour vérifier que le "prompt" (la boîte) ne capture pas d'éléments parasites du décor.
+
+## Exercice 6 : Affiner la sélection de l'objet : points FG/BG + choix du masque (multimask)
+
+Sans les points d'aide de FG et BG, SAM pense que le mask d'index 2 est le meilleur. Or la personne sur la droite n'est pas le meme objet que la plante.
+
+
+```json
+{"scores":[0.9154070019721985,0.9289053678512573,0.9351819753646851],"time_ms":1642.7719593048096}
+
+{"mask_idx":2,"score":0.9351819753646851,"area_px":6471,"mask_bbox":[282,361,386,477],"perimeter":594.6173115968704}
+```
+
+![box_rue_wrong](./images/3a3c52a1c58bef613357e52d6117b372ce166f082d6e459cbc3a9579.jpg)
+
+```json
+{"scores":[0.9289184212684631,0.9520488977432251,0.9325963258743286],"time_ms":1646.0275650024414}
+
+{"mask_idx":1,"score":0.9520488977432251,"area_px":5234,"mask_bbox":[282,371,355,477],"perimeter":337.5218583345413}
+```

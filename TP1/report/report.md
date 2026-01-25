@@ -113,8 +113,13 @@ L'ajustement de la BBox est déterminant pour la précision de SAM. Une boîte t
 
 ## Exercice 6 : Affiner la sélection de l'objet : points FG/BG + choix du masque (multimask)
 
+Nous allons affiner la selection de l'objet en donnant à SAM des points de guidage pour différencier le fond de l'objet et éviter qu'ils selectionnent plusieurs objets en pensant que ça n'en est qu'un.
+
 Sans les points d'aide de FG et BG, SAM pense que le mask d'index 2 est le meilleur. Or la personne sur la droite n'est pas le meme objet que la plante.
 
+Voici un exmple des paramètres avec une bbox seule.
+
+![box_rue_wrong_parameters](./images/Capture%20d’écran%202026-01-23%20183652.png)
 
 ```json
 {"scores":[0.9154070019721985,0.9289053678512573,0.9351819753646851],"time_ms":1642.7719593048096}
@@ -124,8 +129,52 @@ Sans les points d'aide de FG et BG, SAM pense que le mask d'index 2 est le meill
 
 ![box_rue_wrong](./images/3a3c52a1c58bef613357e52d6117b372ce166f082d6e459cbc3a9579.jpg)
 
-```json
-{"scores":[0.9289184212684631,0.9520488977432251,0.9325963258743286],"time_ms":1646.0275650024414}
+>La box étant un peu plus grande que l'objet qu'on voulait initialement détecter (plante verte), Sam détecte aussi la personne sur la droite, comme objet.
 
-{"mask_idx":1,"score":0.9520488977432251,"area_px":5234,"mask_bbox":[282,371,355,477],"perimeter":337.5218583345413}
+Nous rajaoutons deux points: un de background ainsi qu'un point de foreground :
+
+```json
+{"n_points":2,"points":[[375,393,0],[333,393,1]]}
 ```
+![bow_rue_points_parameters](./images/Capture%20d’écran%202026-01-23%20184127.png)
+
+![box_rue_points](./images/23770f3d7fc5c099f6fbfc330dac48df05121c26cee9e171358ebd90.jpg)
+
+```json
+{"scores":[0.936403751373291,0.9537061452865601,0.9325786828994751],"time_ms":1635.0605487823486}
+
+{"mask_idx":1,"score":0.9537061452865601,"area_px":5285,"mask_bbox":[282,317,355,477],"perimeter":384.04877042770386}
+```
+
+![box_rue_right](./images/ae6c8e975a36e9055c6b69f38b8b2a09960acd5dbce292621b0165de.jpg)
+
+>SAM a été aidé par les points marqués. Maintenant l'objet est le bon.
+
+### Conclusion
+
+Les points de Background (BG) sont très utiles quand l'objet qu'on veut détourer touche un autre élément qui lui ressemble (même couleur ou texture). Par exemple, dans la rue, placer un point rouge sur le passant juste à côté de la plante permet de "dire" à SAM de s'arrêter là et de ne pas tout fusionner dans le même masque. Sans ça, l'IA a tendance à faire un gros bloc qui englobe tout le contenu de la boîte.
+
+Par contre, il reste quelques cas difficiles lorsque :
+
+- Les détails sont trop fins
+- L'image presente de la transparence : sur un verre ou une vitre, SAM s'embrouille parce qu'il voit à travers.
+
+## Exercice 7 : Bilan et réflexion (POC vers produit) + remise finale
+
+### Quels sont les 3 principaux facteurs qui font échouer votre segmentation (sur vos images), et quelles actions concrètes (data, UI, pipeline) permettraient d’améliorer la situation.
+
+Les principaux facteurs d'échec de SAM pour l'identification d'un objet sont l'mabiguité du contexte si des objets se chevauchent ou sont à touche touche avec des textures et couleurs similaires. Il y a aussi la transparence, dans ce cas, SAM n'arrive pas à faire la différence entre l'objet et le fond. Enfin il ya les structures très fines telles que les roues d'un vélo. Ces détails ne sont pas détectés par SAM.
+Concrétement, il seraient possible d'affiner la detection en entrainant de nouveau le modèle sur des images + masques de précision.
+Sinon, côté UI on pourrait permettre le tracer à la main ou la pose des box et points directement sur l'image. 
+Dernieremeny, on pourrait changer le modèle et passer de `vit_b` à `vit_h` pour gagner en performances.
+
+
+### Si vous deviez industrialiser cette brique, que loggueriez-vous et que monitoreriez-vous en priorité ? Donnez au minimum 5 éléments.
+
+Pour industrialiser cette solution, il faudrait en priorité surveiller ces éléments :
+- le temps de réponse de l'app Streamlit. Si jamais le temps décolle pour certains utilisateurs alors le serveur sature.
+- la moyenne des scores de confiances. Si SAM commence à donner des scores anormaux sur des nouvelles images alors les données réelles sont surmeent différentes de celles d'entrainement.
+- le taux d'abandon des sessions. Peut-être l'app est-elle trop complexe pour les utilisateurs.
+- le nombre de points de guidage. Pour cela, il faudrait voir si les gens ont tendance à en mettre beaucoup. Si oui, le modèle est mauvais à la tâche.
+- le choix du masque. Est-ce que les utilisateurs prennent le premier masque ou en choisisse d'autres.
+Ce ne sont que des suggestions, il y aurait surement d'autres choses à surveiller.

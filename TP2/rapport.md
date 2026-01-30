@@ -121,10 +121,20 @@ Et voici l'image (très créative) générée :
 | Image | Prompt adherence | Visual realism | Artifacts | E-commerce usability | Reproducibility | Total |
 |-------|------------------|---------------|-----------|---------------------|-----------------|-------|
 | Baseline text2img (t2i_run01_baseline.png) | 2 | 2 | 2 | 2 | 2 | 10 |
-| Text2img extrême avec (t2i_run05_guid12.png) | 1 | 1 | 2 | 1 | 2 | 7 |
-| Img2img strength élevé (i2i_run09_strength085.png) | 0 | 1 | 1 | 0 | 2 | 4 |
+| Text2img extrême avec (t2i_run05_guid12.png) | 2 | 1 | 1 |0 | 2 | 6 |
+| Img2img strength élevé (i2i_run09_strength085.png) | 2 | 2 | 2 | 0 | 2 | 8 |
 
 **Justifications :**
 
+- Run 01 (Baseline) — Score 10/10 : Le standard idéal avec un rendu "studio" net, un éclairage neutre et une géométrie parfaitement respectée, rendant l'image immédiatement exploitable pour une fiche produit.
+- Run 05 (High Guidance) — Score 6/10 : La guidance excessive (>10) sature l'image et force des incohérences physiques (chevauchement impossible des bretelles en bas à gauche), créant un rendu "glitché" inutilisable en e-commerce.
+- Run 09 (High Strength) — Score 8/10 : Un piège classique où la qualité technique est parfaite (photoréalisme bluffant) mais l'utilisabilité est nulle car le produit a totalement changé, constituant une publicité mensongère.
 
 ### Réflexion
+
+La génération d'images demande un compromis entre qualité et latence : si augmenter les steps d'inférence affine les détails, le coût GPU et donc la latence croit. Avec des steps elevés (60), je suis même arrivée à des `"Cuda out of memory"`.
+Il est donc nécessaire de choisir un scheduler optimisé (ex: EulerA à 30 steps) pour un ratio coût/qualité viable.
+
+La reproductibilité est aussi fragile. Elle exige le stockage strict non seulement du prompt, mais surtout de la seed, du scheduler et de la version précise du modèle, sans quoi l'industrialisation de ce processus de génération d'images sera mauvaise.
+
+Enfin, l'usage e-commerce présente des risques critiques d'hallucinations (logos inventés, géométrie du produit altérée) pouvant mener à de la publicité mensongère. Pour mitiger ces risques, il est impératif de brider le denoising strength mais aussi d'utiliser des negative prompts robustes pour exclure des caractéristiques non désirées, et de maintenir une validation humaine systématique basée sur des grilles d'évaluation standardisées (comme fait au-dessus).

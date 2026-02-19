@@ -128,6 +128,69 @@ Le modèle n'est pas trop grand, on pourrait limite en prendre un encore plus gr
 "full_text": ... "I would like a refund or a replacement as soon as possible. The order is a... X, one, nine, seven, eight. three, five. You can reach me at john.smiths. Example. .com. also. My phone number is... five, five, five. 0199."
 ```
 
-**Analyse de l'impact VAD/ASR :** La segmentation VAD semble aider au traitement par chunks (**RTF 0.25**), mais **gêne** la transcription pour les données structurées (numéros, emails). Les pauses entre lettres/chiffres épelées sont interprétées comme des fins de segment, d'où les fragments isolés ("The order is a..." + "X, one, nine, seven, eight."). Email et téléphone sont morcelés : "john.smiths." / "Example." / ".com." / "0199.". Une post-processing améliorerait la cohérence. En conclusion, pour les scripts naturels, VAD fonctionne bien mais pour du contenu structuré un peu moins. 
+**Analyse de l'impact VAD/ASR :** La segmentation VAD semble aider au traitement par chunks (**RTF 0.25**), mais **gêne** la transcription pour les données structurées (numéros, emails). Les pauses entre lettres/chiffres épelées sont interprétées comme des fins de segment, d'où les fragments isolés ("The order is a..." + "X, one, nine, seven, eight."). Email et téléphone sont morcelés : "john.smiths." / "Example." / ".com." / "0199.". Une post-processing améliorerait la cohérence. En conclusion, pour les scripts naturels, VAD fonctionne bien mais pour du contenu structuré un peu moins.
 
-## Exercice 5 : Call center analytics : redaction PII + intention + fiche appel
+## Exercice 5 : Call Center Analytics (Intent, PII, Termes fréquents)
+
+Nous créons le script `TP3/callcenter_analytics.py` pour extraire l'intent, détecter les PII (Personally Identifiable Information), et lister les termes les plus fréquents.
+
+![pii_detection](./img/Capture%20d’écran%202026-02-19%20115414.png)
+
+```json
+{
+  ...
+  "pii_stats": {
+    "emails": 0,
+    "phones": 0
+  },
+  "intent_scores": {
+    "refund_or_replacement": 4,
+    "delivery_issue": 6,
+    "general_support": 5
+  },
+  "intent": "delivery_issue",
+  "top_terms": [
+    [
+      "five",
+      4
+    ],
+    [
+      "calling",
+      2
+    ],
+    [
+      "order",
+      2
+    ],
+    [
+      "thank",
+      1
+    ],
+    [
+      "customer",
+      1
+    ],
+    ...
+  ],
+  "redacted_text": ... "I would like a refund or a replacement as soon as possible. The order is a... X, one, nine, seven, eight. three, five. You can reach me at john.smiths. Example. .com." ...
+```
+
+**Analyse** : PII detection échoue car les emails et téléphones ont été fragmentés par VAD. On va rajouter un preprocessing pour normaliser les tokens et rajouter des masques.
+
+![pii_2](./img/Capture%20d’écran%202026-02-19%20125427.png)
+
+**Comparaison avant/après :**
+| Métrique | Avant | Après | Évolution |
+|---|---|---|---|
+| Emails détectés | 0 | 1 | ✓ |
+| Phones détectés | 0 | 0 | — |
+| Top Term | five | calling | ✓ |
+
+### Réflexion courte
+
+Les erreurs de transcription Whisper impactent de plusieurs manières les analytics.
+D'abord, les numéros et emails épelés lentement sont fragmentés par VAD en segments isolés (ex: **"X, one, nine"** au lieu de **"A X 1 9 7 3 5"**), ce qui rend la détection PII critique et impossible sans post-processing. Donc avant normalisation, aucun numéro de téléphone/email n'était détecté. Après, 1 email est retrouvé.
+Deuxièmement, ces fragments polluent fortement la fréquence des termes : **"five"** apparaît 4 fois du numéro épelé et devient artificiellement top-1, masquant les vrais termes avec du sens(**"calling"**, **"order"**).
+Dernièrement, l'intention reste stable face aux différentes fragmentations car les termes clés (**"order"**, **"damaged"**, **"delivered"**) restent malgré le preprocessing. On retrouve donc **"delivery_issue"** (score 6).
+Le post-traitement est indispensable mais devrait être mieux réalisé.
+

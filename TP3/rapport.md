@@ -76,3 +76,58 @@ pip install silero_vad
 **Analyse :** Le ratio de parole est **75.8%**, ce qui est cohérent pour un discours naturel avec des pauses courtes (respiration, ponctuation). Les 18 segments détectés sont cohérents avec les 9 phrases dites.
 
 Nous augmentons le filtrage `min_dur_s` pour le rendre plus strict, le faisant passer de **0.3** à **0.6**. Nous avons maintenant **15** segments au lieu de **18** et un speech ratio de **72.1%** contre **75.8%**.
+
+## Exerice 4 : ASR avec Whisper : transcription segmentée + mesure de latence
+
+Maintenant, nous créons le script `TP3/asr_whisper.py` qui transcrit les segments VAD. Comme nous avons accès au GPUs des serveurs de TSP, nous choisissons le model **whisper-small**.
+
+Une petite erreur de compatibilité se trouve entre trasnformers/whisper avec `num_frames`, nous installons les dépendances:
+
+```bash
+pip install -U transformers soundfile
+```
+
+![asr](./img/Capture%20d’écran%202026-02-19%20113711.png)
+
+Le modèle n'est pas trop grand, on pourrait limite en prendre un encore plus grand car il a mis 10 sec à transcrire
+
+**Extrait de la transcription (5 premiers segments et quelques lignes du full_text) :**
+```json
+"segments": [
+    {
+      "segment_id": 0,
+      "start_s": 0.962,
+      "end_s": 2.974,
+      "text": "Thank you for calling customer support."
+    },
+    {
+      "segment_id": 1,
+      "start_s": 3.426,
+      "end_s": 5.758,
+      "text": "My name is Alex and I will help you today."
+    },
+    {
+      "segment_id": 2,
+      "start_s": 6.434,
+      "end_s": 9.182,
+      "text": "I'm calling about an order that arrived damaged."
+    },
+    {
+      "segment_id": 3,
+      "start_s": 9.57,
+      "end_s": 12.542,
+      "text": "The package was delivered yesterday, but the screen is cracked."
+    },
+    {
+      "segment_id": 4,
+      "start_s": 13.25,
+      "end_s": 16.99,
+      "text": "I would like a refund or a replacement as soon as possible."
+    },
+]
+"full_text": ... "I would like a refund or a replacement as soon as possible. The order is a... X, one, nine, seven, eight. three, five. You can reach me at john.smiths. Example. .com. also. My phone number is... five, five, five. 0199."
+```
+
+**Analyse de l'impact VAD/ASR :** La segmentation VAD semble aider au traitement par chunks (**RTF 0.25**), mais **gêne** la transcription pour les données structurées (numéros, emails). Les pauses entre lettres/chiffres épelées sont interprétées comme des fins de segment, d'où les fragments isolés ("The order is a..." + "X, one, nine, seven, eight."). Email et téléphone sont morcelés : "john.smiths." / "Example." / ".com." / "0199.". Une post-processing améliorerait la cohérence. En conclusion, pour les scripts naturels, VAD fonctionne bien mais pour du contenu structuré un peu moins. 
+
+## Exercice 5 : Call center analytics : redaction PII + intention + fiche appel

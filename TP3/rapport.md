@@ -194,3 +194,60 @@ Deuxièmement, ces fragments polluent fortement la fréquence des termes : **"fi
 Dernièrement, l'intention reste stable face aux différentes fragmentations car les termes clés (**"order"**, **"damaged"**, **"delivered"**) restent malgré le preprocessing. On retrouve donc **"delivery_issue"** (score 6).
 Le post-traitement est indispensable mais devrait être mieux réalisé.
 
+## Exercice 6 : TTS léger : générer une réponse “agent” et contrôler latence/qualité
+
+Nous utilisons le modèle `microsoft/speecht5_tts` (après upgrade torch pour vulnérabilités CVE-2025-32434).
+
+Pour le modele choisi `suno/bark-small`, il nous est demandé d'upgrader torch à la version 2.6 à cause de vulnérabilités sur la 2.5.
+
+```bash
+pip install -U torch
+pip install --upgrade torchvision
+pip install --upgrade torchaudio
+```
+
+![tts](./img/image.png)
+
+![alt text](./img/image2.png)
+L'audio produit est compatible avec un système ASR (16 kHz mono).
+
+**Analyse :** La qualité de l'audio généré par le modèle TTS est acceptable pour un agent conversationnel, même si l'intonnation est légèrement baclée. Par exemple, on a du mal a comprendre quand est le début ou la fin d'une phrase. La **latence RTF 0.27** (3.7× plus rapide que temps réel) est excellente pour un agent conversationnel avec un temps réel acceptable pour les callcenters. L'audio est compatible ASR 16 kHz, permettant une boucle de feedback complet.
+
+D'ailleurs, si on refait le schéma inverse (STT) sur l'audio produit, on remarque qu'en effet, on a l'impression que damaged est dans la phrase d'après. A part, ça tout est plutot bien.
+
+```bash
+text: Thanks for calling. I am sorry your order arrived. Demanged, I can offer a replacement or a refund. Please confirm your preferred auction.
+```
+
+## Exercice 7 : Intégration : pipeline end-to-end + rapport d’ingénierie (léger)
+
+On écrit un nouveau script pour dérouler toute la pipeline VAD -> ASR -> Analytics -> TTS : `TP3/run_pipeline.py`
+
+![pipeline_summary](./img/image3.png)
+
+```json
+{
+  "audio_path": "TP3/data/call_01.wav",
+  "duration_s": 39.9146875,
+  "num_segments": 15,
+  "speech_ratio": 0.7208374110407354,
+  "asr_model": "openai/whisper-small",
+  "asr_device": "cuda",
+  "asr_rtf": 0.14052177323533235,
+  "intent": "delivery_issue",
+  "pii_stats": {
+    "emails": 1,
+    "phones": 0,
+    "orders": 0
+  },
+  "tts_generated": true
+}
+```
+
+## Engineering Notes : Optimisations pour Production
+
+Le vrai goulot d'étrangelemnt dans la pipeline est Whisper. On passe ~10 secondes à transcrire 40 secondes d'audio (RTF 0.25). VAD et analytics, sont très rapides en comparaison. Si on voulait vraiment l'accélérer, il faudrait basculer sur des plus petits modèles comme Whisper-tiny.
+
+Ensuite, la vraie fragilité, c'est la segmentation VAD qui casse les numéros et emails. On détecte zéro PII sans post-processing, c'est catastrophique pour un usage réel où il est nécessaire de cacher les données sensibles. En fait, le VAD coupe entre chaque chiffre épelé. Sans normalisation robuste, les regex ne retrouvent donc rien.
+
+Deux choses concretes à implémenter sans réentraîner : d'abord, faire de l'overlap entre segments pour reconserver le contexte aux frontières (à l'image du chunking de texte). Ça améliorerait surement la continuité des emails/phones. Ensuite, utiliser un petit un modèle pré-entrainé au lieu de regex simples. Ce serait plus robuste aux fragments.

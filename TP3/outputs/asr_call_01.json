@@ -3,8 +3,8 @@
   "model_id": "openai/whisper-small",
   "device": "cuda",
   "audio_duration_s": 39.9146875,
-  "elapsed_s": 9.988930702209473,
-  "rtf": 0.2502570188532598,
+  "elapsed_s": 5.608882665634155,
+  "rtf": 0.14052177323533235,
   "segments": [
     {
       "segment_id": 0,

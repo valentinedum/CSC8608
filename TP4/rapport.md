@@ -200,4 +200,28 @@ ms_per_node_approx: 0.0001521
 
 ### Importance du warmup et de la synchronisation CUDA
 
-Le warmup (10 iterations avant mesure) est crucial car le GPU a besoin de "chuffer" : les kernels CUDA commencent par être compilés JIT, les caches se peuplent, et le GPU adapte sa fréquence. Sans warmup, les premières mesures seraient artificiellement lentes et instables. La synchronisation CUDA (`torch.cuda.synchronize()`) avant et après chaque mesure force le CPU à attendre que tous les kernels GPU terminent vraiment leur exécution : sans cela, on mesurerait le temps du CPU qui lance les kernels en asynchrone, pas le temps réel du GPU. Sur GPU, les kernels s'exécutent en parallèle avec le CPU—appeler une fonction PyTorch retourne immédiatement, même si le GPU travaille encore. C'est pourquoi on synchronise : pour garantir que notre mesure de temps reflète vraiment le travail du GPU, pas une mesure "optimiste" du côté CPU. Ensemble, warmup + synchronisation donnent une mesure fidèle et reproductible de la latence d'inférence réelle.
+On fait un warmup pour préparer la carte GPU. Sans ça, le premier calcul est toujours très lent parce que le système doit tout mettre en place (chargement bibliotheques, etc), ce qui fausserait les moyennes. Le warmup permet donc des mesures stables et réalistes.
+Pour la synchronisation, c'est parce que le GPU travaille de manière asynchrone. Quand on lui donne un calcul, le code python n'attend pas la fin et continue d'avancer tout seul. Si on n'utilise pas le `torch.cuda.synchronize()`, on va chronométrer le temps que met le processeur à donner l'ordre, et pas le temps effectif d'execution de la tâche.
+
+## Exercice 6 : Synthèse finale : comparaison, compromis, et recommandations ingénieur
+
+| Modèle      | test_acc | test_macro_f1 | total_train_time_s | train_loop_time | avg_forward_ms |
+|------------|----------|---------------|--------------------|----------------|----------------|
+| MLP        | 0.5670   | 0.5549        | 1.0773             | ~1.60          | 0.0943         |
+| GCN        | 0.7950   | 0.7921        | 0.7891             | ~1.17          | 1.3675         |
+| GraphSAGE  | 0.8060   | 0.7996        | 0.7006             | 1.1755         | 0.4119         |
+
+### Recommendation ingénieur
+
+D'après mes mesures, le choix du modèle dépend du compromis entre précision et ressources. Le MLP est à garder uniquement pour sa rapidité. C'est le plus rapide en inférence (**0,09 ms**), mais sa qualité est trop faible (**56% d'accuracy**) car il ignore les liens du graphe.
+Pour de la performance pure, je recommande GraphSAGE, qui arrive en tête avec **80,6% d'accuracy**. En plus d'être le plus précis, il est environ 3 fois plus rapide que le GCN en latence (**0,41 ms** contre **1,37 ms**) grâce au neighbor sampling qui limite le nombre de voisins à traiter. Le GCN reste une alternative robuste avec **79,5% d'accuracy**, mais sa lenteur en traitant tous les voisins le rend moins intéressant pour une mise en production à grande échelle.
+En résumé, pour un système réel alliant efficacité et précision, GraphSAGE est le meilleur choix d'ingénierie d'après mes mesures. Ce serait à confirmer en faisant d'autres tests avec des configurations différentes.
+
+### Risque de protocole
+
+Un risque majeur qui pourrait fausser la comparaison est le Data Leakage. Si on utilise par erreur des arêtes du "test set" pendant la phase d'antrainement soit de message passing, le modèle triche en voyant des connexions qu'il n'est pas censé voir. Ce qui gonfle artifiellement l'accuracy et la fausse.
+Dans un vrai projet, j'éviterais cela en isolant strictement le graphe vu par le modèle pendant l'entrainement. Un autre risque pourrait être le manque de reproducibilité lié au sampling. Pour garantir des mesures comparables entre modèles, il est nécessaire de fixer des seeds pour bloquer le côté aléatoire.
+
+### Check rapide du dépôt
+
+Les checkpoints ont été mis dans le gitignore et le dataset est présent dans le cache.

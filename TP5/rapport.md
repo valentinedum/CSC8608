@@ -98,3 +98,9 @@ Le modèle échoue car il subit un changement de distribution des données (OOD)
 
 ## Exercice 5 : Bilan Ingénieur : Le défi du Sim-to-Real
 
+L'échec de l'agent en gravité modifiée illustre l'écart entre l'environnement d'apprentissage et la réalité : l'agent a "surappris" (overfit) les lois physiques de son environnement d'entraînement.
+
+Pour résoudre ce problème sans multiplier les modèles, je propose deux stratégies:
+
+1. Faire varier aléatoirement la gravité et les auters données physiques lors de l'entraînement au lieu d'utiliser des valeurs fixes pour rendre l'agent plsu robuste
+2. Inclure les paramètres physiques (valeur de la gravité, force du vent) dans son contexte d'observation. Ce qui lui permettra d'ajuster sa poussée en temps réel en fonction des mesures réelles.
